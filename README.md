@@ -34,6 +34,8 @@ higher-level transport or application protocols.
 `go-tpkt` is intended as a foundation for higher-level stacks such as COTP,
 S7comm, or MMS over RFC 1006.
 
+For a concise reference of types, functions, and errors, see [API.md](API.md).
+
 ### Install
 
 ```bash
