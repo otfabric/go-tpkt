@@ -28,16 +28,16 @@ func ExampleEncode() {
 
 func ExampleDecode() {
 	// A minimal valid TPKT packet: version=3, reserved=0, length=7, 3-byte payload.
-	pkt := []byte{0x03, 0x00, 0x00, 0x07, 0x01, 0x02, 0x03}
+	pkt := []byte{0x03, 0x00, 0x00, 0x07, 'a', 'b', 'c'}
 
 	decoded, err := tpkt.Decode(pkt)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(decoded)
+	fmt.Println(string(decoded))
 	// Output:
-	// [1 2 3]
+	// abc
 }
 
 func ExampleReader_ReadFrame() {

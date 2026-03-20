@@ -20,9 +20,13 @@ vet: ## Run go vet
 	@echo "Running go vet..."
 	$(GO) vet $(PKGS)
 
-lint: ## Run golangci-lint
-	@echo "Running golangci-lint..."
-	golangci-lint run
+lint: ## Run staticcheck
+	@echo "Running staticcheck"
+	@staticcheck $(PKGS)
+
+lint-ci: ## Run golangci-lint
+	@echo "Running golangci-lint"
+	@golangci-lint run $(PKGS)
 
 fmt: ## Run go fmt
 	@echo "Running go fmt..."
@@ -62,7 +66,7 @@ tidy: ## Tidy module files
 	@echo "Tidying module files..."
 	$(GO) mod tidy
 
-check: fmt tidy vet test test-race coverage ## Run core release checks
+check: fmt tidy vet lint lint-ci test test-race coverage ## Run core release checks
 
 clean: ## Clean test cache
 	@echo "Cleaning test cache..."
