@@ -1,9 +1,9 @@
 # go-tpkt
 
-[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.21%2B-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/otfabric/go-tpkt)](https://goreportcard.com/report/github.com/otfabric/go-tpkt)
-[![CI](https://github.com/otfabric/go-tpkt/actions/workflows/test.yml/badge.svg)](https://github.com/otfabric/go-tpkt/actions/workflows/test.yml)
+[![CI](https://github.com/otfabric/go-tpkt/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/go-tpkt/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/github/otfabric/go-tpkt/graph/badge.svg)](https://app.codecov.io/github/otfabric/go-tpkt)
 [![Release](https://img.shields.io/github/v/release/otfabric/go-tpkt?label=release)](https://github.com/otfabric/go-tpkt/releases)
 
@@ -42,7 +42,7 @@ For a concise reference of types, functions, and errors, see [API.md](API.md).
 go get github.com/otfabric/go-tpkt
 ```
 
-Requires Go 1.22 or newer.
+Requires Go 1.21 or newer.
 
 ### Basic usage
 

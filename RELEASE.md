@@ -1,4 +1,11 @@
+# v0.1.1
+
+**Changed**: Lowered minimum required Go version to 1.21 (was 1.22). All documentation, CI, and go.mod references updated accordingly. No code changes.
+
+This release ensures compatibility with Go 1.21. No new features or bugfixes are included.
 # go-tpkt Releases
+
+---
 
 ## v0.1.0
 
@@ -27,5 +34,6 @@ Initial public release of `github.com/otfabric/go-tpkt`, a small, idiomatic Go l
   - `README.md` with badges, install instructions, examples, and size/ownership notes.
   - `LICENSE` (MIT).
   - `Makefile` with `test`, `vet`, `fuzz`, and `bench` targets.
-  - GitHub Actions workflow (`.github/workflows/test.yml`) running tests, race tests, coverage, and Codecov upload on Go 1.22 and 1.23.
+  - GitHub Actions workflow (`.github/workflows/test.yml`) running tests, race tests, coverage, and Codecov upload on Go 1.21 and 1.23.
 
+---
