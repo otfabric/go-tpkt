@@ -1,4 +1,3 @@
-
 name: CI
 run-name: "CI (${{ github.event_name }}) on ${{ github.ref_name }} by @${{ github.actor }}"
 
