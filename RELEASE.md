@@ -1,9 +1,10 @@
-# v0.1.1
+# go-tpkt Releases
+
+## v0.1.1
 
 **Changed**: Lowered minimum required Go version to 1.21 (was 1.22). All documentation, CI, and go.mod references updated accordingly. No code changes.
 
 This release ensures compatibility with Go 1.21. No new features or bugfixes are included.
-# go-tpkt Releases
 
 ---
 
