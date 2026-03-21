@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/otfabric/go-tpkt)](https://goreportcard.com/report/github.com/otfabric/go-tpkt)
 [![CI](https://github.com/otfabric/go-tpkt/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/go-tpkt/actions/workflows/ci.yml)
-[![Codecov](https://codecov.io/github/otfabric/go-tpkt/graph/badge.svg)](https://app.codecov.io/github/otfabric/go-tpkt)
+[![Codecov](https://codecov.io/github/otfabric/go-tpkt/graph/badge.svg?token=t2JMPUq846)](https://codecov.io/github/otfabric/go-tpkt)
 [![Release](https://img.shields.io/github/v/release/otfabric/go-tpkt?label=release)](https://github.com/otfabric/go-tpkt/releases)
 
 `go-tpkt` is a small, idiomatic Go library that implements the TPKT packet
