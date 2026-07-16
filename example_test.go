@@ -10,15 +10,14 @@ import (
 	"github.com/otfabric/go-tpkt"
 )
 
-func ExampleEncode() {
+func ExampleEncodePacket() {
 	payload := []byte{0x02, 0xf0, 0x80}
 
-	pkt, err := tpkt.Encode(payload)
+	pkt, err := tpkt.EncodePacket(payload)
 	if err != nil {
 		panic(err)
 	}
 
-	// Inspect header fields of the encoded packet.
 	version := pkt[0]
 	reserved := pkt[1]
 	length := int(binary.BigEndian.Uint16(pkt[2:4]))
@@ -28,11 +27,10 @@ func ExampleEncode() {
 	// 3 0 true
 }
 
-func ExampleDecode() {
-	// A minimal valid TPKT packet: version=3, reserved=0, length=7, 3-byte payload.
+func ExampleDecodePacket() {
 	pkt := []byte{0x03, 0x00, 0x00, 0x07, 'a', 'b', 'c'}
 
-	decoded, err := tpkt.Decode(pkt)
+	decoded, err := tpkt.DecodePacket(pkt)
 	if err != nil {
 		panic(err)
 	}
@@ -42,13 +40,16 @@ func ExampleDecode() {
 	// abc
 }
 
-func ExampleReader_ReadFrame() {
+func ExampleReader_ReadPacket() {
 	payload := []byte{0x01, 0x02, 0x03}
-	pkt, _ := tpkt.Encode(payload)
+	pkt, _ := tpkt.EncodePacket(payload)
 
-	r := tpkt.NewReader(bytes.NewReader(pkt))
+	r, err := tpkt.NewReader(bytes.NewReader(pkt), tpkt.ReaderConfig{})
+	if err != nil {
+		panic(err)
+	}
 
-	got, err := r.ReadFrame()
+	got, err := r.ReadPacket()
 	if err != nil {
 		panic(err)
 	}
@@ -58,18 +59,20 @@ func ExampleReader_ReadFrame() {
 	// true
 }
 
-func ExampleWriter_WriteFrame() {
+func ExampleWriter_WritePacket() {
 	var buf bytes.Buffer
-	w := tpkt.NewWriter(&buf)
-
-	payload := []byte{0x01, 0x02, 0x03}
-	if _, err := w.WriteFrame(payload); err != nil {
+	w, err := tpkt.NewWriter(&buf)
+	if err != nil {
 		panic(err)
 	}
 
-	expected, _ := tpkt.Encode(payload)
-	ok := bytes.Equal(buf.Bytes(), expected)
-	fmt.Println(ok)
+	payload := []byte{0x01, 0x02, 0x03}
+	if err := w.WritePacket(payload); err != nil {
+		panic(err)
+	}
+
+	expected, _ := tpkt.EncodePacket(payload)
+	fmt.Println(bytes.Equal(buf.Bytes(), expected))
 	// Output:
 	// true
 }

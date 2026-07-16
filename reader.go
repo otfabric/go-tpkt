@@ -3,61 +3,63 @@
 package tpkt
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
 
-// Reader reads TPKT-framed payloads from an underlying io.Reader.
+// Reader reads TPKT packets from an underlying io.Reader.
 //
-// It is safe for use with any streaming source such as a net.Conn. Reader is
-// not safe for concurrent use from multiple goroutines without external
-// synchronization.
+// A Reader and a Writer may be used concurrently when they wrap the same
+// full-duplex connection. An individual Reader is not safe for concurrent use
+// by multiple goroutines without external synchronization.
 type Reader struct {
-	r            io.Reader
-	maxFrameSize int // maximum allowed total TPKT length, including header
+	r               io.Reader
+	maxPacketLength int
 }
 
-// ReaderOption configures a Reader.
-type ReaderOption func(*Reader)
-
-// WithMaxFrameSize sets an upper bound on the total TPKT packet size (header
-// plus payload) that the Reader will accept.
+// ReaderConfig configures a Reader.
 //
-// Values less than or equal to zero leave the default in place. Values greater
-// than zero but smaller than MinPacketLength are clamped up to MinPacketLength.
-func WithMaxFrameSize(n int) ReaderOption {
-	return func(r *Reader) {
-		if n <= 0 {
-			return
-		}
-		if n < MinPacketLength {
-			n = MinPacketLength
-		}
-		r.maxFrameSize = n
-	}
+// MaxPacketLength is the maximum accepted total TPKT size (header included).
+// Zero means MaxPacketLength (65535). Values outside
+// [MinPacketLength, MaxPacketLength] are rejected — never clamped.
+type ReaderConfig struct {
+	MaxPacketLength int
 }
 
 // NewReader constructs a Reader over r.
 //
-// By default it accepts packets up to the RFC 1006 maximum. WithMaxFrameSize
-// can be used to impose a stricter bound.
-func NewReader(r io.Reader, opts ...ReaderOption) *Reader {
-	rd := &Reader{
-		r:            r,
-		maxFrameSize: rfcMaxPacketLength,
+// An empty ReaderConfig{} uses the protocol maximum. r must be non-nil.
+func NewReader(r io.Reader, cfg ReaderConfig) (*Reader, error) {
+	if r == nil {
+		return nil, ErrNilReader
 	}
-	for _, opt := range opts {
-		opt(rd)
+
+	maxLen := cfg.MaxPacketLength
+	if maxLen == 0 {
+		maxLen = MaxPacketLength
 	}
-	return rd
+	if maxLen < MinPacketLength || maxLen > MaxPacketLength {
+		return nil, fmt.Errorf("%w: got %d, expected %d..%d or 0 for default",
+			ErrInvalidMaxPacketLength, cfg.MaxPacketLength, MinPacketLength, MaxPacketLength)
+	}
+
+	return &Reader{
+		r:               r,
+		maxPacketLength: maxLen,
+	}, nil
 }
 
-// ReadFrame reads the next TPKT frame from the stream and returns its payload.
+// ReadPacket reads the next TPKT from the stream and returns its payload.
 //
-// It returns io.EOF when called at a frame boundary and the underlying reader
-// has no more data. If the stream ends in the middle of a header or payload,
-// it returns an error wrapping io.ErrUnexpectedEOF.
-func (r *Reader) ReadFrame() ([]byte, error) {
+// It returns io.EOF only when called at a packet boundary and no header byte
+// is available. Any EOF after one or more bytes of a packet have been
+// consumed — including immediately after a valid header — is reported as
+// io.ErrUnexpectedEOF.
+//
+// After a validation or oversized-packet error, the stream is unusable; the
+// caller must close the connection. Remaining announced bytes are not drained.
+func (r *Reader) ReadPacket() ([]byte, error) {
 	var header [HeaderLength]byte
 	if err := readFullHeader(r.r, header[:]); err != nil {
 		return nil, err
@@ -68,8 +70,9 @@ func (r *Reader) ReadFrame() ([]byte, error) {
 		return nil, fmt.Errorf("read tpkt header: %w", err)
 	}
 
-	if totalLen > r.maxFrameSize {
-		return nil, fmt.Errorf("read tpkt header: total length=%d exceeds maxFrameSize=%d: %w", totalLen, r.maxFrameSize, ErrFrameTooLarge)
+	if totalLen > r.maxPacketLength {
+		return nil, fmt.Errorf("read tpkt header: total length=%d exceeds maxPacketLength=%d: %w",
+			totalLen, r.maxPacketLength, ErrPacketTooLarge)
 	}
 
 	payloadLen := totalLen - HeaderLength
@@ -84,10 +87,13 @@ func (r *Reader) ReadFrame() ([]byte, error) {
 func readFullHeader(r io.Reader, header []byte) error {
 	n, err := io.ReadFull(r, header)
 	if err != nil {
-		// If nothing was read and we hit EOF, surface EOF so callers can
-		// distinguish between a clean end-of-stream and a truncated header.
-		if err == io.EOF && n == 0 {
+		if errors.Is(err, io.EOF) && n == 0 {
 			return io.EOF
+		}
+		// Partial header: normalize EOF to UnexpectedEOF (ReadFull usually
+		// already returns ErrUnexpectedEOF when n > 0, but be explicit).
+		if errors.Is(err, io.EOF) {
+			err = io.ErrUnexpectedEOF
 		}
 		return fmt.Errorf("read tpkt header: %w", err)
 	}
@@ -98,8 +104,14 @@ func readFullPayload(r io.Reader, payload []byte) error {
 	if len(payload) == 0 {
 		return nil
 	}
-	if _, err := io.ReadFull(r, payload); err != nil {
-		return fmt.Errorf("read tpkt payload: %w", err)
+	_, err := io.ReadFull(r, payload)
+	if err == nil {
+		return nil
 	}
-	return nil
+	// After a valid header, missing payload is a truncated packet — never a
+	// clean end-of-stream.
+	if errors.Is(err, io.EOF) {
+		err = io.ErrUnexpectedEOF
+	}
+	return fmt.Errorf("read tpkt payload: %w", err)
 }

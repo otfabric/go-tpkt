@@ -7,28 +7,32 @@ import (
 	"io"
 )
 
-// Writer writes payloads as TPKT-framed packets to an underlying io.Writer.
-// It currently exposes only the WriteFrame helper; callers that wish to send
-// a Frame should pass f.Payload explicitly. Writer is not safe for concurrent
-// use from multiple goroutines without external synchronization.
+// Writer writes opaque payloads as TPKT packets to an underlying io.Writer.
+//
+// A Reader and a Writer may be used concurrently when they wrap the same
+// full-duplex connection. An individual Writer is not safe for concurrent use
+// by multiple goroutines without external synchronization.
 type Writer struct {
 	w io.Writer
 }
 
-// NewWriter constructs a Writer over w.
-func NewWriter(w io.Writer) *Writer {
-	return &Writer{w: w}
+// NewWriter constructs a Writer over w. w must be non-nil.
+func NewWriter(w io.Writer) (*Writer, error) {
+	if w == nil {
+		return nil, ErrNilWriter
+	}
+	return &Writer{w: w}, nil
 }
 
-// WriteFrame encodes payload as a TPKT packet and writes it in full.
+// WritePacket encodes payload as a TPKT and writes it in full.
 //
-// It returns the total number of octets written (header plus payload). If the
-// underlying writer performs a short write or returns an error, WriteFrame
-// returns a non-nil error.
-func (w *Writer) WriteFrame(payload []byte) (int, error) {
-	pkt, err := Encode(payload)
+// The reserved octet is always written as zero. Short writes from the
+// underlying writer are retried until the complete packet is sent or an error
+// occurs. A zero-byte write with a nil error yields io.ErrShortWrite.
+func (w *Writer) WritePacket(payload []byte) error {
+	pkt, err := EncodePacket(payload)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	total := len(pkt)
 
@@ -39,12 +43,12 @@ func (w *Writer) WriteFrame(payload []byte) (int, error) {
 			written += n
 		}
 		if err != nil {
-			return written, fmt.Errorf("write tpkt: %w", err)
+			return fmt.Errorf("write tpkt: %w", err)
 		}
 		if n == 0 {
-			return written, fmt.Errorf("write tpkt: %w", io.ErrShortWrite)
+			return fmt.Errorf("write tpkt: %w", io.ErrShortWrite)
 		}
 	}
 
-	return written, nil
+	return nil
 }

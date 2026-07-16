@@ -7,53 +7,47 @@ import (
 	"testing"
 )
 
-func BenchmarkEncodeSmall(b *testing.B) {
+func BenchmarkEncodePacketSmall(b *testing.B) {
 	payload := []byte{0x01, 0x02, 0x03}
 	for i := 0; i < b.N; i++ {
-		if _, err := Encode(payload); err != nil {
-			b.Fatalf("Encode error: %v", err)
+		if _, err := EncodePacket(payload); err != nil {
+			b.Fatal(err)
 		}
 	}
 }
 
-func BenchmarkDecodeSmall(b *testing.B) {
-	payload := []byte{0x01, 0x02, 0x03}
-	pkt, err := Encode(payload)
+func BenchmarkDecodePacketSmall(b *testing.B) {
+	pkt, err := EncodePacket([]byte{0x01, 0x02, 0x03})
 	if err != nil {
-		b.Fatalf("Encode error: %v", err)
+		b.Fatal(err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := Decode(pkt); err != nil {
-			b.Fatalf("Decode error: %v", err)
+		if _, err := DecodePacket(pkt); err != nil {
+			b.Fatal(err)
 		}
 	}
 }
 
-func BenchmarkReaderSmall(b *testing.B) {
-	payload := []byte{0x01, 0x02, 0x03}
-	pkt, err := Encode(payload)
-	if err != nil {
-		b.Fatalf("Encode error: %v", err)
-	}
-
-	for i := 0; i < b.N; i++ {
-		r := NewReader(bytes.NewReader(pkt))
-		if _, err := r.ReadFrame(); err != nil {
-			b.Fatalf("ReadFrame error: %v", err)
-		}
-	}
-}
-
-func BenchmarkWriterSmall(b *testing.B) {
-	payload := []byte{0x01, 0x02, 0x03}
+func BenchmarkReadWritePacket(b *testing.B) {
+	payload := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
 	var buf bytes.Buffer
-
+	w, err := NewWriter(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	if err := w.WritePacket(payload); err != nil {
+		b.Fatal(err)
+	}
+	data := buf.Bytes()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		buf.Reset()
-		w := NewWriter(&buf)
-		if _, err := w.WriteFrame(payload); err != nil {
-			b.Fatalf("WriteFrame error: %v", err)
+		r, err := NewReader(bytes.NewReader(data), ReaderConfig{})
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, err := r.ReadPacket(); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

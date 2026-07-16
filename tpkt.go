@@ -7,43 +7,19 @@ import (
 	"fmt"
 )
 
-// Frame represents a single TPKT-framed TPDU.
+// EncodePacket builds exactly one TPKT from the provided opaque payload.
 //
-// The Payload is treated as an opaque sequence of bytes by this package; higher
-// level protocols (e.g. COTP, S7, MMS) are expected to interpret it. A Frame
-// value by itself does not guarantee RFC 1006 validity: payloads that are too
-// short or too large will be rejected when marshaled or encoded.
-type Frame struct {
-	Payload []byte
-}
-
-// Len reports HeaderLength + len(Payload), i.e. the total length the frame
-// would occupy on the wire if encodable.
-func (f Frame) Len() int {
-	return HeaderLength + len(f.Payload)
-}
-
-// MarshalBinary encodes the Frame into a complete TPKT packet.
-//
-// The returned slice is a newly allocated buffer. If the encoded packet would
-// be smaller than MinPacketLength or larger than MaxPacketLength, an error is
-// returned.
-func (f Frame) MarshalBinary() ([]byte, error) {
-	return Encode(f.Payload)
-}
-
-// Encode builds a complete TPKT packet from the provided payload.
-//
-// The returned slice contains the 4-byte TPKT header followed by the payload.
-// The header is constructed according to RFC 1006 section 6.
-func Encode(payload []byte) ([]byte, error) {
+// The returned slice is newly allocated and contains the 4-byte TPKT header
+// followed by the payload. The reserved octet is always written as zero
+// (RFC 2126 §4.3). Payload length must be in [MinPayloadLength, MaxPayloadLength].
+func EncodePacket(payload []byte) ([]byte, error) {
 	totalLen := HeaderLength + len(payload)
 
-	if totalLen < rfcMinPacketLength {
-		return nil, fmt.Errorf("encode tpkt: total length %d < minimum %d: %w", totalLen, rfcMinPacketLength, ErrInvalidLength)
+	if len(payload) < MinPayloadLength {
+		return nil, fmt.Errorf("encode tpkt: payload length %d < minimum %d: %w", len(payload), MinPayloadLength, ErrPayloadTooShort)
 	}
-	if totalLen > rfcMaxPacketLength {
-		return nil, fmt.Errorf("encode tpkt: total length %d > maximum %d: %w", totalLen, rfcMaxPacketLength, ErrFrameTooLarge)
+	if len(payload) > MaxPayloadLength {
+		return nil, fmt.Errorf("encode tpkt: payload length %d > maximum %d: %w", len(payload), MaxPayloadLength, ErrPayloadTooLarge)
 	}
 
 	buf := make([]byte, totalLen)
@@ -55,67 +31,46 @@ func Encode(payload []byte) ([]byte, error) {
 	return buf, nil
 }
 
-// Decode validates a complete TPKT packet and returns only the payload.
+// DecodePacket validates exactly one complete TPKT and returns its payload.
 //
-// The returned slice aliases pkt; callers must copy it if they need to retain
-// it independently.
-func Decode(pkt []byte) ([]byte, error) {
-	return parse(pkt)
-}
-
-// Parse validates a complete TPKT packet and returns a Frame.
-//
-// The returned Frame.Payload aliases pkt; callers must copy it if they need to
-// retain it independently.
-func Parse(pkt []byte) (Frame, error) {
-	payload, err := parse(pkt)
-	if err != nil {
-		return Frame{}, err
-	}
-	return Frame{Payload: payload}, nil
-}
-
-// parse performs common validation logic for Decode and Parse.
-//
-// It returns a slice view of the payload, which aliases pkt.
-func parse(pkt []byte) ([]byte, error) {
-	if len(pkt) < HeaderLength {
-		return nil, fmt.Errorf("decode tpkt: have %d bytes, need at least header: %w", len(pkt), ErrTooShort)
+// Trailing bytes after the declared packet length are rejected with
+// ErrLengthMismatch. The reserved octet is ignored on input as recommended by
+// RFC 2126 §6.10. The returned slice aliases packet; callers must copy it if
+// they need to retain it independently.
+func DecodePacket(packet []byte) ([]byte, error) {
+	if len(packet) < HeaderLength {
+		return nil, fmt.Errorf("decode tpkt: have %d bytes, need at least header: %w", len(packet), ErrTooShort)
 	}
 
-	totalLen, err := decodeHeader(pkt[:HeaderLength])
+	totalLen, err := decodeHeader(packet[:HeaderLength])
 	if err != nil {
 		return nil, fmt.Errorf("decode tpkt: %w", err)
 	}
 
-	if totalLen != len(pkt) {
-		return nil, fmt.Errorf("decode tpkt: declared length=%d, actual=%d: %w", totalLen, len(pkt), ErrLengthMismatch)
+	if totalLen != len(packet) {
+		return nil, fmt.Errorf("decode tpkt: declared length=%d, actual=%d: %w", totalLen, len(packet), ErrLengthMismatch)
 	}
 
 	payloadLen := totalLen - HeaderLength
-	return pkt[HeaderLength : HeaderLength+payloadLen], nil
+	return packet[HeaderLength : HeaderLength+payloadLen], nil
 }
 
-// decodeHeader performs structural validation of the first 4 bytes of a TPKT
-// header and returns the declared total packet length in octets.
+// decodeHeader validates the first 4 bytes of a TPKT header and returns the
+// declared total packet length in octets. The reserved octet is ignored.
 func decodeHeader(hdr []byte) (int, error) {
 	if len(hdr) < HeaderLength {
 		return 0, fmt.Errorf("tpkt header: have %d bytes, need %d: %w", len(hdr), HeaderLength, ErrTooShort)
 	}
 
-	version := hdr[0]
-	if version != Version {
-		return 0, fmt.Errorf("tpkt header: version=%d: %w", version, ErrInvalidVersion)
+	if hdr[0] != Version {
+		return 0, fmt.Errorf("tpkt header: version=%d: %w", hdr[0], ErrInvalidVersion)
 	}
 
-	reserved := hdr[1]
-	if reserved != 0 {
-		return 0, fmt.Errorf("tpkt header: reserved=%d: %w", reserved, ErrInvalidReserved)
-	}
+	// Reserved octet (hdr[1]) is ignored on input per RFC 2126 §6.10.
 
 	totalLen := int(binary.BigEndian.Uint16(hdr[2:4]))
-	if totalLen < rfcMinPacketLength {
-		return 0, fmt.Errorf("tpkt header: total length=%d: %w", totalLen, ErrInvalidLength)
+	if totalLen < MinPacketLength || totalLen > MaxPacketLength {
+		return 0, fmt.Errorf("tpkt header: total length=%d: %w", totalLen, ErrInvalidPacketLength)
 	}
 
 	return totalLen, nil

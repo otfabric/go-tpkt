@@ -4,6 +4,7 @@ package tpkt
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"testing"
 )
@@ -13,30 +14,24 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 		name    string
 		payload []byte
 	}{
-		{
-			name:    "minimum TPDU length (3 bytes)",
-			payload: []byte{0x01, 0x02, 0x03},
-		},
-		{
-			name:    "small payload",
-			payload: []byte{0xde, 0xad, 0xbe, 0xef},
-		},
-		{
-			name:    "arbitrary payload",
-			payload: []byte("hello, tpkt"),
-		},
+		{name: "minimum payload (3 bytes)", payload: []byte{0x01, 0x02, 0x03}},
+		{name: "small payload", payload: []byte{0xde, 0xad, 0xbe, 0xef}},
+		{name: "arbitrary payload", payload: []byte("hello, tpkt")},
+		{name: "non-multiple-of-4 total length", payload: []byte{0x01, 0x02, 0x03, 0x04, 0x05}}, // total 9
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkt, err := Encode(tt.payload)
+			pkt, err := EncodePacket(tt.payload)
 			if err != nil {
-				t.Fatalf("Encode() error = %v", err)
+				t.Fatalf("EncodePacket() error = %v", err)
 			}
-
-			got, err := Decode(pkt)
+			if pkt[0] != Version || pkt[1] != 0 {
+				t.Fatalf("header version/reserved = %d/%d, want 3/0", pkt[0], pkt[1])
+			}
+			got, err := DecodePacket(pkt)
 			if err != nil {
-				t.Fatalf("Decode() error = %v", err)
+				t.Fatalf("DecodePacket() error = %v", err)
 			}
 			if !bytes.Equal(got, tt.payload) {
 				t.Fatalf("payload mismatch: got %v want %v", got, tt.payload)
@@ -45,207 +40,141 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
-func TestEncodeLengthValidation(t *testing.T) {
-	t.Run("empty payload rejected", func(t *testing.T) {
-		// total length would be HeaderLength (4), below RFC 1006 minimum of 7.
-		if _, err := Encode(nil); !errors.Is(err, ErrInvalidLength) {
-			t.Fatalf("Encode() with empty payload: want ErrInvalidLength, got %v", err)
+func TestEncodePacketLengthValidation(t *testing.T) {
+	t.Run("empty payload", func(t *testing.T) {
+		if _, err := EncodePacket(nil); !errors.Is(err, ErrPayloadTooShort) {
+			t.Fatalf("got %v, want ErrPayloadTooShort", err)
 		}
 	})
-
-	t.Run("payload smaller than 3 bytes rejected", func(t *testing.T) {
-		tooShort := []byte{0x01, 0x02}
-		if _, err := Encode(tooShort); !errors.Is(err, ErrInvalidLength) {
-			t.Fatalf("Encode() with too short payload: want ErrInvalidLength, got %v", err)
+	t.Run("payload shorter than 3", func(t *testing.T) {
+		if _, err := EncodePacket([]byte{0x01, 0x02}); !errors.Is(err, ErrPayloadTooShort) {
+			t.Fatalf("got %v, want ErrPayloadTooShort", err)
 		}
 	})
-
-	t.Run("max size boundary", func(t *testing.T) {
-		maxPayload := make([]byte, rfcMaxPacketLength-HeaderLength)
-		if _, err := Encode(maxPayload); err != nil {
-			t.Fatalf("Encode() at max size error = %v", err)
+	t.Run("max payload", func(t *testing.T) {
+		maxPayload := make([]byte, MaxPayloadLength)
+		if _, err := EncodePacket(maxPayload); err != nil {
+			t.Fatalf("EncodePacket at max: %v", err)
 		}
-
-		tooLarge := make([]byte, rfcMaxPacketLength-HeaderLength+1)
-		if _, err := Encode(tooLarge); !errors.Is(err, ErrFrameTooLarge) {
-			t.Fatalf("Encode() above max size: want ErrFrameTooLarge, got %v", err)
+		tooLarge := make([]byte, MaxPayloadLength+1)
+		if _, err := EncodePacket(tooLarge); !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("got %v, want ErrPayloadTooLarge", err)
 		}
 	})
 }
 
-func TestDecodeValidationErrors(t *testing.T) {
+func TestDecodePacketValidation(t *testing.T) {
 	validPayload := []byte{0x01, 0x02, 0x03}
-	validPkt, err := Encode(validPayload)
+	validPkt, err := EncodePacket(validPayload)
 	if err != nil {
-		t.Fatalf("Encode() error = %v", err)
+		t.Fatalf("EncodePacket: %v", err)
 	}
 
 	tests := []struct {
 		name    string
-		mutate  func([]byte) []byte
+		input   []byte
 		wantErr error
 	}{
 		{
-			name: "too short buffer",
-			mutate: func(_ []byte) []byte {
-				return []byte{0x03, 0x00, 0x00}
-			},
+			name:    "too short buffer",
+			input:   []byte{0x03, 0x00, 0x00},
 			wantErr: ErrTooShort,
 		},
 		{
 			name: "invalid version",
-			mutate: func(b []byte) []byte {
-				cp := append([]byte(nil), b...)
+			input: func() []byte {
+				cp := append([]byte(nil), validPkt...)
 				cp[0] = 0x02
 				return cp
-			},
+			}(),
 			wantErr: ErrInvalidVersion,
 		},
 		{
-			name: "invalid reserved",
-			mutate: func(b []byte) []byte {
-				cp := append([]byte(nil), b...)
-				cp[1] = 0x01
+			name: "declared length below minimum",
+			input: func() []byte {
+				cp := append([]byte(nil), validPkt...)
+				cp[2], cp[3] = 0x00, 0x06
 				return cp
-			},
-			wantErr: ErrInvalidReserved,
+			}(),
+			wantErr: ErrInvalidPacketLength,
 		},
 		{
-			name: "declared length smaller than minimum",
-			mutate: func(b []byte) []byte {
-				cp := append([]byte(nil), b...)
-				// Force a value below rfcMinPacketLength.
-				cp[2] = 0x00
-				cp[3] = 0x06
-				return cp
-			},
-			wantErr: ErrInvalidLength,
-		},
-		{
-			name: "length mismatch larger than buffer",
-			mutate: func(b []byte) []byte {
-				cp := append([]byte(nil), b...)
-				// Increase declared length by 1.
+			name: "length mismatch larger declaration",
+			input: func() []byte {
+				cp := append([]byte(nil), validPkt...)
 				cp[3]++
 				return cp
-			},
+			}(),
 			wantErr: ErrLengthMismatch,
 		},
 		{
-			name: "length mismatch smaller than buffer",
-			mutate: func(b []byte) []byte {
-				// Append one extra trailing byte so actual > declared.
-				cp := append([]byte(nil), b...)
-				cp = append(cp, 0x00)
-				return cp
-			},
+			name: "trailing bytes rejected",
+			input: func() []byte {
+				return append(append([]byte(nil), validPkt...), 0x00)
+			}(),
 			wantErr: ErrLengthMismatch,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input := tt.mutate(validPkt)
-			_, err := Decode(input)
+			_, err := DecodePacket(tt.input)
 			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("Decode() error = %v, want %v", err, tt.wantErr)
+				t.Fatalf("DecodePacket() error = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func TestParseFrame(t *testing.T) {
-	payload := []byte{0x01, 0x02, 0x03}
-	pkt, err := Encode(payload)
-	if err != nil {
-		t.Fatalf("Encode() error = %v", err)
-	}
-
-	frame, err := Parse(pkt)
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
-	if frame.Len() != len(pkt) {
-		t.Fatalf("Frame.Len() = %d, want %d", frame.Len(), len(pkt))
-	}
-	if !bytes.Equal(frame.Payload, payload) {
-		t.Fatalf("Frame.Payload = %v, want %v", frame.Payload, payload)
-	}
-
-	// MarshalBinary should round-trip.
-	gotPkt, err := frame.MarshalBinary()
-	if err != nil {
-		t.Fatalf("Frame.MarshalBinary() error = %v", err)
-	}
-	if !bytes.Equal(gotPkt, pkt) {
-		t.Fatalf("MarshalBinary() mismatch: got %v want %v", gotPkt, pkt)
+func TestDecodePacketIgnoresReserved(t *testing.T) {
+	for _, reserved := range []byte{0x00, 0x01, 0x80, 0xff} {
+		pkt := []byte{Version, reserved, 0x00, 0x07, 'a', 'b', 'c'}
+		got, err := DecodePacket(pkt)
+		if err != nil {
+			t.Fatalf("reserved=%#x: unexpected error %v", reserved, err)
+		}
+		if !bytes.Equal(got, []byte{'a', 'b', 'c'}) {
+			t.Fatalf("reserved=%#x: payload %v", reserved, got)
+		}
 	}
 }
 
-func TestFrameMarshalBinaryInvalidPayload(t *testing.T) {
-	tests := []struct {
-		name    string
-		payload []byte
-		wantErr error
-	}{
-		{
-			name:    "empty payload",
-			payload: nil,
-			wantErr: ErrInvalidLength,
-		},
-		{
-			name:    "too short payload",
-			payload: []byte{0x01, 0x02},
-			wantErr: ErrInvalidLength,
-		},
-		{
-			name:    "too large payload",
-			payload: make([]byte, MaxPacketLength-HeaderLength+1),
-			wantErr: ErrFrameTooLarge,
-		},
+func TestEncodePacketAlwaysZeroReserved(t *testing.T) {
+	pkt, err := EncodePacket([]byte{0x01, 0x02, 0x03})
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Payload: tt.payload}
-			_, err := f.MarshalBinary()
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("Frame.MarshalBinary() error = %v, want %v", err, tt.wantErr)
-			}
-		})
+	if pkt[1] != 0 {
+		t.Fatalf("reserved = %d, want 0", pkt[1])
 	}
 }
 
-func TestDecodeAliasing(t *testing.T) {
-	payload := []byte{0x01, 0x02, 0x03}
-	pkt, err := Encode(payload)
+func TestDecodePacketAliasing(t *testing.T) {
+	pkt, err := EncodePacket([]byte{0x01, 0x02, 0x03})
 	if err != nil {
-		t.Fatalf("Encode() error = %v", err)
+		t.Fatal(err)
 	}
-
-	decoded, err := Decode(pkt)
+	decoded, err := DecodePacket(pkt)
 	if err != nil {
-		t.Fatalf("Decode() error = %v", err)
+		t.Fatal(err)
 	}
 	decoded[0] ^= 0xff
 	if pkt[HeaderLength] != decoded[0] {
-		t.Fatalf("expected Decode() payload to alias packet buffer")
+		t.Fatal("expected DecodePacket payload to alias packet buffer")
 	}
 }
 
-func TestParseAliasing(t *testing.T) {
-	payload := []byte{0x01, 0x02, 0x03}
-	pkt, err := Encode(payload)
-	if err != nil {
-		t.Fatalf("Encode() error = %v", err)
+func TestDecodeHeaderLengthEncoding(t *testing.T) {
+	payload := make([]byte, 100)
+	for i := range payload {
+		payload[i] = byte(i)
 	}
-
-	frame, err := Parse(pkt)
+	pkt, err := EncodePacket(payload)
 	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+		t.Fatal(err)
 	}
-	frame.Payload[1] ^= 0xff
-	if pkt[HeaderLength+1] != frame.Payload[1] {
-		t.Fatalf("expected Frame.Payload to alias packet buffer")
+	declared := int(binary.BigEndian.Uint16(pkt[2:4]))
+	if declared != len(pkt) {
+		t.Fatalf("declared length %d != len(pkt) %d", declared, len(pkt))
 	}
 }
