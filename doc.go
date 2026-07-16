@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 // Package tpkt implements TPKT framing as defined by RFC 1006.
 //
 // TPKT is a simple header + payload packetization scheme used to carry ISO

@@ -1,5 +1,15 @@
 # go-tpkt Releases
 
+## v0.1.3
+
+**Changed**: Open-source release preparation and documentation improvements. No API or behavior changes.
+
+- Added `// SPDX-License-Identifier: MIT` headers to all first-party Go source files.
+- Expanded [API.md](API.md) into a full public API reference (wire format, types, functions, errors, streaming semantics, ownership, and usage patterns).
+- Updated [README.md](README.md): standardized badge block (pkg.go.dev, tokenless Codecov), table of contents, runnable getting-started examples, license section, and links to API.md for detailed usage.
+
+---
+
 ## v0.1.2
 
 **Changed**: Increased minimum required Go version to 1.23 (was 1.21). All documentation, CI, and go.mod references updated accordingly. No code changes.

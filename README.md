@@ -1,10 +1,10 @@
 # go-tpkt
 
 [![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Reference](https://pkg.go.dev/badge/github.com/otfabric/go-tpkt.svg)](https://pkg.go.dev/github.com/otfabric/go-tpkt)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/otfabric/go-tpkt)](https://goreportcard.com/report/github.com/otfabric/go-tpkt)
 [![CI](https://github.com/otfabric/go-tpkt/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/go-tpkt/actions/workflows/ci.yml)
-[![Codecov](https://codecov.io/github/otfabric/go-tpkt/graph/badge.svg?token=t2JMPUq846)](https://codecov.io/github/otfabric/go-tpkt)
+[![Codecov](https://codecov.io/gh/otfabric/go-tpkt/graph/badge.svg)](https://codecov.io/gh/otfabric/go-tpkt)
 [![Release](https://img.shields.io/github/v/release/otfabric/go-tpkt?label=release)](https://github.com/otfabric/go-tpkt/releases)
 
 `go-tpkt` is a small, idiomatic Go library that implements the TPKT packet
@@ -14,6 +14,18 @@ TPKT is a simple header + payload packet format used to carry ISO transport
 protocol data units (TPDUs) over a TCP byte stream. This package focuses only
 on TPKT framing and validation; it does not interpret or implement any
 higher-level transport or application protocols.
+
+### Table of contents
+
+- [Scope](#scope)
+- [Install](#install)
+- [Getting started](#getting-started)
+  - [Encode and decode a single packet](#encode-and-decode-a-single-packet)
+  - [Streaming reader](#streaming-reader)
+  - [Streaming writer](#streaming-writer)
+- [Relation to higher-level protocols](#relation-to-higher-level-protocols)
+- [License](#license)
+- [API reference](API.md)
 
 ### Scope
 
@@ -34,8 +46,6 @@ higher-level transport or application protocols.
 `go-tpkt` is intended as a foundation for higher-level stacks such as COTP,
 S7comm, or MMS over RFC 1006.
 
-For a concise reference of types, functions, and errors, see [API.md](API.md).
-
 ### Install
 
 ```bash
@@ -44,7 +54,11 @@ go get github.com/otfabric/go-tpkt
 
 Requires Go 1.23 or newer.
 
-### Basic usage
+### Getting started
+
+The examples below cover the most common entry points. For the complete public
+API — wire format, all types and functions, error handling, streaming
+semantics, size limits, and ownership rules — see **[API.md](API.md)**.
 
 #### Encode and decode a single packet
 
@@ -77,26 +91,57 @@ func main() {
 #### Streaming reader
 
 ```go
-// conn is a net.Conn established to a peer speaking RFC 1006 TPKT.
-// r := tpkt.NewReader(conn)
+package main
 
-// payload, err := r.ReadFrame()
-// if err != nil {
-//     // handle EOF, malformed frames, etc.
-// }
-// // payload now contains a complete TPDU as bytes.
+import (
+	"bytes"
+	"log"
+
+	"github.com/otfabric/go-tpkt"
+)
+
+func main() {
+	pkt, _ := tpkt.Encode([]byte{0x01, 0x02, 0x03})
+
+	r := tpkt.NewReader(bytes.NewReader(pkt))
+	payload, err := r.ReadFrame()
+	if err != nil {
+		log.Fatalf("read: %v", err)
+	}
+
+	_ = payload // TPDU bytes for a higher-level protocol
+}
 ```
+
+For `net.Conn` usage, error classification, `WithMaxFrameSize`, and read loops,
+see [Reader](API.md#reader) in API.md.
 
 #### Streaming writer
 
 ```go
-// conn is a net.Conn
-// w := tpkt.NewWriter(conn)
-// _, err := w.WriteFrame(payload)
-// if err != nil {
-//     // handle write or framing error
-// }
+package main
+
+import (
+	"bytes"
+	"log"
+
+	"github.com/otfabric/go-tpkt"
+)
+
+func main() {
+	var buf bytes.Buffer
+	w := tpkt.NewWriter(&buf)
+
+	payload := []byte{0x01, 0x02, 0x03}
+	if _, err := w.WriteFrame(payload); err != nil {
+		log.Fatalf("write: %v", err)
+	}
+
+	_ = buf.Bytes() // complete TPKT packet on the wire
+}
 ```
+
+For `net.Conn` usage and write semantics, see [Writer](API.md#writer) in API.md.
 
 ### Relation to higher-level protocols
 
@@ -104,24 +149,10 @@ This package intentionally stops at TPKT framing. Protocols such as COTP,
 S7comm, and MMS can be implemented on top of the payloads read and written
 through this library without any coupling to their semantics.
 
-### Size limits, validation, and ownership
+See [Usage patterns](API.md#usage-patterns) in API.md for how TPKT fits into a
+full protocol stack.
 
-- The library enforces the RFC 1006 minimum packet size of 7 octets
-  (4-byte TPKT header + 3-byte minimum TPDU), so payloads must be at least
-  3 bytes long to be encodable.
-- `tpkt.MinPacketLength` and `tpkt.MaxPacketLength` expose the protocol
-  bounds (7 and 65535) for callers that want to size buffers or apply their
-  own checks.
-- `Encode`, `Decode`, and `Parse` validate packets against protocol structure
-  only (version, reserved, length, buffer consistency); they do not apply any
-  additional caller-configurable maximum frame size.
-- `Reader` applies the same structural checks and also enforces a configurable
-  maximum total packet size via `WithMaxFrameSize`, clamping values below
-  `tpkt.MinPacketLength` up to that minimum.
-- `Decode` and `Parse` return payload slices that alias the input buffer; if
-  you need to retain or mutate them independently, copy the data first.
-- `Reader.ReadFrame` returns a newly allocated payload slice that is safe to
-  mutate without affecting the underlying stream buffer.
-- `Reader` and `Writer` are not safe for concurrent use from multiple
-  goroutines without external synchronization.
+## License
+
+This project is licensed under the MIT License. See [LICENSE](./LICENSE).
 
