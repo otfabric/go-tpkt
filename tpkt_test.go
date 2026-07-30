@@ -178,3 +178,12 @@ func TestDecodeHeaderLengthEncoding(t *testing.T) {
 		t.Fatalf("declared length %d != len(pkt) %d", declared, len(pkt))
 	}
 }
+
+func TestDecodeHeaderTooShort(t *testing.T) {
+	// DecodePacket rejects short buffers before decodeHeader; exercise the
+	// defensive guard directly.
+	_, err := decodeHeader([]byte{Version, 0x00, 0x00})
+	if !errors.Is(err, ErrTooShort) {
+		t.Fatalf("got %v, want ErrTooShort", err)
+	}
+}

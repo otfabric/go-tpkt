@@ -87,13 +87,10 @@ func (r *Reader) ReadPacket() ([]byte, error) {
 func readFullHeader(r io.Reader, header []byte) error {
 	n, err := io.ReadFull(r, header)
 	if err != nil {
+		// Clean end-of-stream only when no header byte was consumed.
+		// io.ReadFull already maps a partial header + EOF to ErrUnexpectedEOF.
 		if errors.Is(err, io.EOF) && n == 0 {
 			return io.EOF
-		}
-		// Partial header: normalize EOF to UnexpectedEOF (ReadFull usually
-		// already returns ErrUnexpectedEOF when n > 0, but be explicit).
-		if errors.Is(err, io.EOF) {
-			err = io.ErrUnexpectedEOF
 		}
 		return fmt.Errorf("read tpkt header: %w", err)
 	}

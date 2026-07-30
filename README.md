@@ -19,6 +19,7 @@ broader ITOT / Class 0/2 transport profile of RFC 2126.
 ### Table of contents
 
 - [Scope](#scope)
+- [Repository structure](#repository-structure)
 - [Install](#install)
 - [Getting started](#getting-started)
   - [Encode and decode a single packet](#encode-and-decode-a-single-packet)
@@ -47,10 +48,32 @@ broader ITOT / Class 0/2 transport profile of RFC 2126.
 
 `go-tpkt` is a foundation for higher-level stacks such as COTP over RFC 1006.
 
+### Repository structure
+
+```
+go-tpkt/
+├── .                  Public package `tpkt` (flat root)
+│   ├── tpkt.go        EncodePacket / DecodePacket
+│   ├── reader.go      Streaming Reader / ReadPacket
+│   ├── writer.go      Streaming Writer / WritePacket
+│   ├── errors.go      Exported sentinels
+│   ├── doc.go         Package overview
+│   └── *_test.go      Unit, fuzz, bench, and example tests
+├── spec/              RFC 1006 / RFC 2126 reference texts
+├── API.md             Public API reference (wire format, ownership, EOF)
+├── RELEASE.md         Release history
+├── CONTRIBUTING.md    Contribution / test guidance
+└── SECURITY.md        Vulnerability reporting
+```
+
+There is no `internal/` or `cmd/` tree: buffer and stream APIs live in the same
+package, split across focused files. Buffer ownership and stream contracts are
+documented in [API.md](API.md#ownership).
+
 ### Install
 
 ```bash
-go get github.com/otfabric/go-tpkt@v1.0.0
+go get github.com/otfabric/go-tpkt@v1.0.1
 ```
 
 Requires Go 1.23 or newer.

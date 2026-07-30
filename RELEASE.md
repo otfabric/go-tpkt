@@ -1,5 +1,32 @@
 # go-tpkt Releases
 
+## v1.0.1
+
+**Date:** 2026-07-30
+**Previous release:** v1.0.0
+
+### Summary
+
+Docs and Makefile polish only. No public API surface changes.
+
+### Changed
+
+- **API.md** — added an [Ownership](API.md#ownership) subsection documenting
+  buffer aliasing for `DecodePacket` versus new allocations from
+  `EncodePacket` / `ReadPacket` / `WritePacket`.
+- **README** — repository structure overview (flat `tpkt` package layout).
+- **Makefile** — exports `GOWORK=off`; adds `make vuln` (`govulncheck`) to
+  `check`; fuzz targets aligned to real names (`FuzzDecodePacket`,
+  `FuzzEncodeDecodePacket`, `FuzzReaderChunking`, `FuzzReservedPolicy`).
+- **Tests** — cover `decodeHeader` short-buffer and empty `readFullPayload`
+  guards; drop unreachable partial-header EOF remap in `readFullHeader`
+  (`io.ReadFull` already returns `ErrUnexpectedEOF`). Statement coverage
+  **100%**.
+
+Import path remains `github.com/otfabric/go-tpkt`.
+
+---
+
 ## v1.0.0
 
 First stable API release.

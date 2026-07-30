@@ -116,6 +116,14 @@ func TestReaderHeaderThenClose(t *testing.T) {
 	}
 }
 
+func TestReadFullPayloadEmpty(t *testing.T) {
+	// Declared total length is always ≥ MinPacketLength, so ReadPacket never
+	// requests a zero-length payload; cover the helper guard directly.
+	if err := readFullPayload(bytes.NewReader(nil), nil); err != nil {
+		t.Fatalf("empty payload: %v", err)
+	}
+}
+
 func TestReaderTruncatedPayload(t *testing.T) {
 	pkt, _ := EncodePacket([]byte{0x01, 0x02, 0x03, 0x04})
 	r, err := NewReader(bytes.NewReader(pkt[:HeaderLength+1]), ReaderConfig{})

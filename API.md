@@ -13,6 +13,7 @@ For installation and a quick getting started guide, see [README.md](README.md).
 - [Wire format](#wire-format)
 - [Constants](#constants)
 - [Byte-buffer API](#byte-buffer-api)
+- [Ownership](#ownership)
 - [Stream API](#stream-api)
 - [Errors](#errors)
 - [EOF and stream contracts](#eof-and-stream-contracts)
@@ -107,6 +108,17 @@ func DecodePacket(packet []byte) ([]byte, error)
 ```
 
 Validates exactly one complete TPKT and returns the payload (aliases `packet`). Trailing bytes → `ErrLengthMismatch`. Reserved ignored on input.
+
+---
+
+## Ownership
+
+| API | Buffer ownership |
+|-----|------------------|
+| `EncodePacket` | Returns a **new** packet buffer. The input `payload` is copied; the caller retains ownership of `payload`. |
+| `DecodePacket` | Returned payload **aliases** `packet` (a subslice). Mutating or reusing `packet` after decode affects the result; copy the payload if it must outlive the input buffer. |
+| `ReadPacket` | Returns a **newly allocated** payload. It does not alias an internal stream buffer. |
+| `WritePacket` | Copies `payload` into the encoded TPKT written to the underlying `io.Writer`. The caller retains ownership of `payload`. |
 
 ---
 
