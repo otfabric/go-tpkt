@@ -28,6 +28,9 @@ broader ITOT / Class 0/2 transport profile of RFC 2126.
 - [Relation to higher-level protocols](#relation-to-higher-level-protocols)
 - [License](#license)
 - [API reference](API.md)
+- [Architecture](ARCHITECTURE.md)
+- [Testing](TESTING.md)
+- [Limitations](LIMITATIONS.md)
 
 ### Scope
 
@@ -61,6 +64,9 @@ go-tpkt/
 │   └── *_test.go      Unit, fuzz, bench, and example tests
 ├── spec/              RFC 1006 / RFC 2126 reference texts
 ├── API.md             Public API reference (wire format, ownership, EOF)
+├── ARCHITECTURE.md    Layers, goroutine and ownership model
+├── TESTING.md         Test tiers, coverage policy, fuzz regressions
+├── LIMITATIONS.md     Scope limits and what has not been verified
 ├── RELEASE.md         Release history
 ├── CONTRIBUTING.md    Contribution / test guidance
 └── SECURITY.md        Vulnerability reporting
