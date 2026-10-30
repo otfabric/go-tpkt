@@ -5,7 +5,10 @@ export GOWORK := off
 
 PKGS := ./...
 
-.PHONY: help test test-race vet lint lint-ci fmt fuzz fuzz-decode fuzz-roundtrip fuzz-reader fuzz-reserved bench tidy vuln check clean coverage coverage-html coverage-clean
+# Same floor as coverage-min in .github/workflows/ci.yml.
+COVER_MIN := 90
+
+.PHONY: help test test-race vet lint lint-ci fmt fuzz fuzz-decode fuzz-roundtrip fuzz-reader fuzz-reserved bench tidy vuln check clean coverage coverage-html coverage-clean coverage-check cross
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -41,6 +44,10 @@ coverage: ## Run tests with coverage profile and text summary
 	@go test -coverprofile=coverage.out $(PKGS)
 	@go tool cover -func=coverage.out | tee coverage.txt
 
+coverage-check: coverage ## Fail below COVER_MIN
+	@total=$$(go tool cover -func=coverage.out | awk '/^total:/ {sub("%","",$$3); print $$3}'); \
+	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% < %s%%\n", t, m; exit 1 } else printf "coverage %.1f%% >= %s%%\n", t, m }'
+
 coverage-html: coverage ## Generate HTML coverage report
 	@echo "Generating HTML coverage report..."
 	@go tool cover -html=coverage.out -o coverage.html
@@ -75,6 +82,11 @@ fuzz-reserved: ## Run FuzzReservedPolicy
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."
 	@go test -run=^$$ -bench=. -benchmem $(PKGS)
+
+cross: ## Cross-compile without cgo for supported platforms
+	@for p in linux/amd64 linux/arm64 linux/arm darwin/arm64 windows/amd64; do \
+		echo "build $$p"; \
+		CGO_ENABLED=0 GOOS=$${p%/*} GOARCH=$${p#*/} go build $(PKGS) || exit 1; done
 
 tidy: ## Tidy module files
 	@echo "Tidying module files..."
