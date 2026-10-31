@@ -1,5 +1,16 @@
 # go-tpkt Releases
 
+## v1.0.2
+
+**Date:** 2026-10-31
+**Previous release:** v1.0.1
+
+### Changed
+
+- Policy 1.2: build output in `bin/` and `release/`, a per-package coverage floor, and more tests and CI. No change in behaviour.
+
+---
+
 ## v1.0.1
 
 **Date:** 2026-07-30
