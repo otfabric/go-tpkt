@@ -7,8 +7,11 @@ PKGS := ./...
 
 # Same floor as coverage-min in .github/workflows/ci.yml.
 COVER_MIN := 90
+# Per-package floor (TEST-012). The module has one package, at 100 % when set.
+COVER_PKG_MIN := 95
+FUZZTIME ?= 5s
 
-.PHONY: help test test-race vet lint lint-ci fmt fuzz fuzz-decode fuzz-roundtrip fuzz-reader fuzz-reserved bench tidy vuln check clean coverage coverage-html coverage-clean coverage-check cross
+.PHONY: help test test-race vet lint lint-ci fmt fuzz fuzz-decode fuzz-roundtrip fuzz-reader fuzz-reserved bench tidy vuln check clean coverage coverage-html coverage-clean coverage-check coverage-pkg-check cross
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -48,6 +51,11 @@ coverage-check: coverage ## Fail below COVER_MIN
 	@total=$$(go tool cover -func=coverage.out | awk '/^total:/ {sub("%","",$$3); print $$3}'); \
 	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% < %s%%\n", t, m; exit 1 } else printf "coverage %.1f%% >= %s%%\n", t, m }'
 
+coverage-pkg-check: coverage ## Fail when a package is below COVER_PKG_MIN
+	@awk -v m="$(COVER_PKG_MIN)" 'NR > 1 { n[$$1] = $$2; if ($$3 > 0) h[$$1] = 1 } \
+	END { for (k in n) { p = k; sub(/\/[^\/]*$$/, "", p); s[p] += n[k]; if (k in h) c[p] += n[k] } \
+	for (p in s) { v = 100 * c[p] / s[p]; if (v < m) { printf "%s: %.1f%% < %s%%\n", p, v, m; bad = 1 } } exit bad }' coverage.out
+
 coverage-html: coverage ## Generate HTML coverage report
 	@echo "Generating HTML coverage report..."
 	@go tool cover -html=coverage.out -o coverage.html
@@ -56,12 +64,11 @@ coverage-clean: ## Remove coverage artifacts
 	@echo "Removing coverage artifacts..."
 	rm -f coverage.out coverage.txt coverage.html
 
-fuzz: ## Run short fuzz tests (all targets)
-	@echo "Running fuzz tests..."
-	@go test -fuzz=FuzzDecodePacket -fuzztime=5s .
-	@go test -fuzz=FuzzEncodeDecodePacket -fuzztime=5s .
-	@go test -fuzz=FuzzReaderChunking -fuzztime=5s .
-	@go test -fuzz=FuzzReservedPolicy -fuzztime=5s .
+fuzz: ## Run every Fuzz target for FUZZTIME (targets discovered, never listed)
+	@for t in $$(go test -list '^Fuzz' . | grep '^Fuzz'); do \
+		echo "fuzz $$t"; \
+		go test -run '^$$' -fuzz "^$$t$$" -fuzztime $(FUZZTIME) . || exit 1; \
+	done
 
 fuzz-decode: ## Run FuzzDecodePacket
 	@echo "Running FuzzDecodePacket..."
@@ -96,7 +103,7 @@ vuln: ## Run govulncheck (install: go install golang.org/x/vuln/cmd/govulncheck@
 	@echo "Running govulncheck"
 	@govulncheck $(PKGS)
 
-check: fmt tidy vet lint lint-ci vuln test test-race coverage ## Run core release checks
+check: fmt tidy vet lint lint-ci vuln test test-race coverage-check coverage-pkg-check ## Run core release checks
 
 clean: ## Clean test cache
 	@echo "Cleaning test cache..."
