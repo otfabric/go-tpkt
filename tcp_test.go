@@ -23,9 +23,7 @@ func TestTCPMultiPacketSmoke(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		conn, err := ln.Accept()
 		if err != nil {
 			t.Errorf("Accept: %v", err)
@@ -48,7 +46,7 @@ func TestTCPMultiPacketSmoke(t *testing.T) {
 				t.Errorf("packet %d: got %v want %v", i, got, want)
 			}
 		}
-	}()
+	})
 
 	conn, err := net.Dial("tcp", ln.Addr().String())
 	if err != nil {
@@ -79,9 +77,7 @@ func TestTCPFullDuplexSmoke(t *testing.T) {
 	resp := []byte{0x40, 0x50, 0x60}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		conn, err := ln.Accept()
 		if err != nil {
 			t.Errorf("Accept: %v", err)
@@ -111,7 +107,7 @@ func TestTCPFullDuplexSmoke(t *testing.T) {
 		if err := w.WritePacket(resp); err != nil {
 			t.Errorf("WritePacket: %v", err)
 		}
-	}()
+	})
 
 	conn, err := net.Dial("tcp", ln.Addr().String())
 	if err != nil {
