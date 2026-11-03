@@ -1,6 +1,6 @@
 # Testing
 
-All tests are in the root package. They need Go 1.23 or later and no external service; the TCP tests listen on a `127.0.0.1` port chosen by the system. No test is skipped on a missing prerequisite, so there are no `*_REQUIRE_*` variables.
+All tests are in the root package. They need Go 1.26 or later and no external service; the TCP tests listen on a `127.0.0.1` port chosen by the system. No test is skipped on a missing prerequisite, so there are no `*_REQUIRE_*` variables.
 
 ## Tiers
 
@@ -20,7 +20,7 @@ There is no end-to-end tier and no interop tier: the module has no peer to run a
 
 ## CI
 
-`.github/workflows/ci.yml` calls the shared `go-ci` workflow: tests and race tests on Go 1.23 to 1.26 on Linux, the coverage gate, govulncheck, and a smoke run of 10 s for each Fuzz target. The `package-coverage` job runs `make coverage-pkg-check` (`COVER_PKG_MIN`, 95%).
+`.github/workflows/ci.yml` calls the shared `go-ci` workflow: tests and race tests on Go 1.26 and 1.27 on Linux, the coverage gate, govulncheck, and a smoke run of 10 s for each Fuzz target. The `package-coverage` job runs `make coverage-pkg-check` (`COVER_PKG_MIN`, 95%).
 
 `.github/workflows/nightly.yml` runs every Fuzz target for 5 minutes and uploads a failing input as an artifact.
 

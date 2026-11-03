@@ -83,10 +83,7 @@ func FuzzReaderChunking(f *testing.F) {
 		}
 		chunks := make([]int, 0, len(pkt))
 		for remain := len(pkt); remain > 0; remain -= chunkSize {
-			n := chunkSize
-			if n > remain {
-				n = remain
-			}
+			n := min(chunkSize, remain)
 			chunks = append(chunks, n)
 		}
 		cr := &chunkReader{data: pkt, chunks: chunks}

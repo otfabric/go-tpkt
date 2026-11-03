@@ -1,5 +1,17 @@
 # go-tpkt Releases
 
+## v1.1.0
+
+**Date:** 2026-11-03
+**Previous release:** v1.0.3
+
+### Changed
+
+- **Go 1.26 is now the minimum** (`go 1.26` in `go.mod`, was 1.23). CI tests Go 1.26 and 1.27. Modules that import go-tpkt v1.1.0 need Go 1.26 or newer; the API and the wire behaviour are unchanged.
+- `go fix ./...` applied: tests use `min` and `sync.WaitGroup.Go`.
+
+---
+
 ## v1.0.3
 
 **Date:** 2026-11-03

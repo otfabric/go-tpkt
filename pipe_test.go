@@ -22,9 +22,7 @@ func TestPipeRoundTrip(t *testing.T) {
 
 	payload := []byte{0x01, 0x02, 0x03}
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		w, err := NewWriter(c1)
 		if err != nil {
 			t.Errorf("NewWriter: %v", err)
@@ -33,7 +31,7 @@ func TestPipeRoundTrip(t *testing.T) {
 		if err := w.WritePacket(payload); err != nil {
 			t.Errorf("WritePacket: %v", err)
 		}
-	}()
+	})
 
 	r, err := NewReader(c2, ReaderConfig{})
 	if err != nil {
@@ -64,9 +62,7 @@ func TestPipeMultiPacket(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer func() { _ = c1.Close() }()
 		w, err := NewWriter(c1)
 		if err != nil {
@@ -79,7 +75,7 @@ func TestPipeMultiPacket(t *testing.T) {
 				return
 			}
 		}
-	}()
+	})
 
 	r, err := NewReader(c2, ReaderConfig{})
 	if err != nil {
@@ -112,9 +108,7 @@ func TestPipeFullDuplex(t *testing.T) {
 	resp := []byte{0x11, 0x22, 0x33}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		r, err := NewReader(c2, ReaderConfig{})
 		if err != nil {
 			t.Errorf("server NewReader: %v", err)
@@ -137,7 +131,7 @@ func TestPipeFullDuplex(t *testing.T) {
 		if err := w.WritePacket(resp); err != nil {
 			t.Errorf("server WritePacket: %v", err)
 		}
-	}()
+	})
 
 	w, err := NewWriter(c1)
 	if err != nil {
@@ -169,12 +163,10 @@ func TestPipeAdversarialBadVersion(t *testing.T) {
 	_ = c2.SetDeadline(deadline)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		_, _ = c1.Write([]byte{0x02, 0x00, 0x00, 0x07, 0x01, 0x02, 0x03})
 		_ = c1.Close()
-	}()
+	})
 
 	r, err := NewReader(c2, ReaderConfig{})
 	if err != nil {
@@ -195,12 +187,10 @@ func TestPipeNonZeroReservedAccepted(t *testing.T) {
 	_ = c2.SetDeadline(deadline)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		_, _ = c1.Write([]byte{Version, 0xff, 0x00, 0x07, 0x01, 0x02, 0x03})
 		_ = c1.Close()
-	}()
+	})
 
 	r, err := NewReader(c2, ReaderConfig{})
 	if err != nil {
