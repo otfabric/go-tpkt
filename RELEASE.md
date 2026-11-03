@@ -1,5 +1,16 @@
 # go-tpkt Releases
 
+## v1.0.3
+
+**Date:** 2026-11-03
+**Previous release:** v1.0.2
+
+### Changed
+
+- `EncodePacket` checks the total packet length itself against `[MinPacketLength, MaxPacketLength]` before writing it as a 16-bit length, so a static check can see that the value fits (gosec G115). The accepted payload sizes and the errors are unchanged.
+
+---
+
 ## v1.0.2
 
 **Date:** 2026-10-31
