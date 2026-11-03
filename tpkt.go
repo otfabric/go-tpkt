@@ -15,10 +15,12 @@ import (
 func EncodePacket(payload []byte) ([]byte, error) {
 	totalLen := HeaderLength + len(payload)
 
-	if len(payload) < MinPayloadLength {
+	// Bound totalLen itself (not only len(payload)) so the uint16 conversion
+	// below is visibly in range.
+	if totalLen < MinPacketLength {
 		return nil, fmt.Errorf("encode tpkt: payload length %d < minimum %d: %w", len(payload), MinPayloadLength, ErrPayloadTooShort)
 	}
-	if len(payload) > MaxPayloadLength {
+	if totalLen > MaxPacketLength {
 		return nil, fmt.Errorf("encode tpkt: payload length %d > maximum %d: %w", len(payload), MaxPayloadLength, ErrPayloadTooLarge)
 	}
 
