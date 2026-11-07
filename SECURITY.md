@@ -13,5 +13,5 @@ Include a clear description, steps to reproduce, affected versions, and the impa
 
 | Version | Supported |
 |---------|-----------|
-| 1.1.x | Yes |
-| < 1.1 | No |
+| Latest release | Yes |
+| Older releases | No |
