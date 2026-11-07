@@ -10,8 +10,10 @@ COVER_MIN := 90
 # Per-package floor (TEST-012). The module has one package, at 100 % when set.
 COVER_PKG_MIN := 95
 FUZZTIME ?= 5s
+# docsync release of docs-check (DOC-008).
+DOCSYNC_VERSION := v0.2.0
 
-.PHONY: help test test-race vet lint lint-ci fmt fuzz fuzz-decode fuzz-roundtrip fuzz-reader fuzz-reserved bench tidy vuln check clean coverage coverage-html coverage-clean coverage-check coverage-pkg-check cross
+.PHONY: help test test-race vet lint lint-ci fmt fuzz fuzz-decode fuzz-roundtrip fuzz-reader fuzz-reserved bench tidy vuln check clean coverage coverage-html coverage-clean coverage-check coverage-pkg-check cross docs-check
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -103,8 +105,12 @@ vuln: ## Run govulncheck (install: go install golang.org/x/vuln/cmd/govulncheck@
 	@echo "Running govulncheck"
 	@govulncheck $(PKGS)
 
-check: fmt tidy vet lint lint-ci vuln test test-race coverage-check coverage-pkg-check ## Run core release checks
+check: fmt tidy vet lint lint-ci vuln test test-race coverage-check coverage-pkg-check docs-check ## Run core release checks
 
 clean: ## Clean test cache
 	@echo "Cleaning test cache..."
 	@go clean -testcache
+
+# The documents against the code (DOC-008): docsync, as docs-check.yml runs it.
+docs-check: ## Check that the documents agree with the code (docsync)
+	@go run github.com/otfabric/docsync@$(DOCSYNC_VERSION) check .
