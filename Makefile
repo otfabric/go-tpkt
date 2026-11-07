@@ -11,7 +11,7 @@ COVER_MIN := 90
 COVER_PKG_MIN := 95
 FUZZTIME ?= 5s
 # docsync release of docs-check (DOC-008).
-DOCSYNC_VERSION := v0.2.0
+DOCSYNC_VERSION := v0.3.0
 
 .PHONY: help test test-race vet lint lint-ci fmt fuzz fuzz-decode fuzz-roundtrip fuzz-reader fuzz-reserved bench tidy vuln check clean coverage coverage-html coverage-clean coverage-check coverage-pkg-check cross docs-check
 
