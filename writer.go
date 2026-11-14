@@ -41,7 +41,10 @@ func NewWriter(w io.Writer) (*Writer, error) {
 //
 // The reserved octet is always written as zero. Short writes from the
 // underlying writer are retried until the complete packet is sent or an error
-// occurs. A zero-byte write with a nil error yields io.ErrShortWrite.
+// occurs. A zero-byte write with a nil error yields io.ErrShortWrite. A
+// write that reports a negative count or more octets than it was given breaks
+// the io.Writer contract; WritePacket then returns an error and the Writer
+// stays failed as after a partial write.
 //
 // A payload outside [MinPayloadLength, MaxPayloadLength] is refused with
 // ErrPayloadTooShort or ErrPayloadTooLarge before the Writer looks at its
@@ -79,6 +82,14 @@ func (w *Writer) WritePacket(payload []byte) error {
 	written := 0
 	for written < total {
 		n, err := w.w.Write(pkt[written:])
+		if n < 0 || n > total-written {
+			// The writer broke the io.Writer contract, so how much of the
+			// packet reached the stream is unknown: treat the stream as
+			// misaligned.
+			err = fmt.Errorf("write tpkt: %w: %d of %d octets", errInvalidWriteCount, n, total-written)
+			w.misaligned = fmt.Errorf("%w: %w", ErrStreamMisaligned, err)
+			return err
+		}
 		if n > 0 {
 			written += n
 		}

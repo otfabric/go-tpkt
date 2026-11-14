@@ -66,3 +66,7 @@ var (
 	// closes the connection.
 	ErrStreamMisaligned = errors.New("tpkt: stream no longer aligned on a packet boundary")
 )
+
+// errInvalidWriteCount is wrapped when the underlying io.Writer reports a
+// count outside [0, len(p)].
+var errInvalidWriteCount = errors.New("tpkt: writer returned an invalid count")
