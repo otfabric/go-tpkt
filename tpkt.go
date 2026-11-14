@@ -38,7 +38,9 @@ func EncodePacket(payload []byte) ([]byte, error) {
 // Trailing bytes after the declared packet length are rejected with
 // ErrLengthMismatch. The reserved octet is ignored on input as recommended by
 // RFC 2126 §6.10. The returned slice aliases packet; callers must copy it if
-// they need to retain it independently.
+// they need to retain it independently. Its capacity ends at the end of the
+// packet, so appending to it copies and never writes into the buffer behind
+// packet.
 func DecodePacket(packet []byte) ([]byte, error) {
 	if len(packet) < HeaderLength {
 		return nil, fmt.Errorf("decode tpkt: have %d bytes, need at least header: %w", len(packet), ErrTooShort)
@@ -53,8 +55,9 @@ func DecodePacket(packet []byte) ([]byte, error) {
 		return nil, fmt.Errorf("decode tpkt: declared length=%d, actual=%d: %w", totalLen, len(packet), ErrLengthMismatch)
 	}
 
-	payloadLen := totalLen - HeaderLength
-	return packet[HeaderLength : HeaderLength+payloadLen], nil
+	// The full slice expression ends the capacity at the packet: packet may be
+	// a prefix of a larger buffer of the caller.
+	return packet[HeaderLength:totalLen:totalLen], nil
 }
 
 // decodeHeader validates the first 4 bytes of a TPKT header and returns the

@@ -30,15 +30,17 @@ const (
 
 // Exported sentinel errors. Callers should use errors.Is to classify failures.
 var (
-	// ErrNilReader indicates NewReader was called with a nil io.Reader.
+	// ErrNilReader indicates NewReader was called with a nil io.Reader, or
+	// ReadPacket was called on a zero-value or nil Reader.
 	ErrNilReader = errors.New("tpkt: nil reader")
-	// ErrNilWriter indicates NewWriter was called with a nil io.Writer.
+	// ErrNilWriter indicates NewWriter was called with a nil io.Writer, or
+	// WritePacket was called on a zero-value or nil Writer.
 	ErrNilWriter = errors.New("tpkt: nil writer")
 	// ErrTooShort indicates that a buffer is shorter than the 4-byte TPKT header.
 	ErrTooShort = errors.New("tpkt: packet too short")
 	// ErrInvalidVersion indicates a header with a version byte other than 3.
 	ErrInvalidVersion = errors.New("tpkt: invalid version")
-	// ErrInvalidPacketLength indicates that a declared or computed TPKT length
+	// ErrInvalidPacketLength indicates that the TPKT length a header declares
 	// is outside the legal range [MinPacketLength, MaxPacketLength].
 	ErrInvalidPacketLength = errors.New("tpkt: invalid packet length")
 	// ErrInvalidMaxPacketLength indicates that ReaderConfig.MaxPacketLength
@@ -56,4 +58,11 @@ var (
 	// ErrPayloadTooLarge indicates that an encode payload exceeds
 	// MaxPayloadLength (65531 octets).
 	ErrPayloadTooLarge = errors.New("tpkt: payload exceeds maximum")
+	// ErrStreamMisaligned indicates that an earlier ReadPacket or WritePacket
+	// on the same Reader or Writer failed after one or more octets of a
+	// packet had moved, so the stream is no longer aligned on a packet
+	// boundary. The error that reports it also wraps the error of that
+	// earlier call. The Reader or Writer stays in this state; the caller
+	// closes the connection.
+	ErrStreamMisaligned = errors.New("tpkt: stream no longer aligned on a packet boundary")
 )

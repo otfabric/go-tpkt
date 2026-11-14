@@ -33,6 +33,8 @@ Public entry points:
 
 DecodePacket requires exactly one complete TPKT and rejects trailing bytes. ReadPacket returns io.EOF only at a clean packet boundary; EOF after any byte of a packet has been consumed is reported as io.ErrUnexpectedEOF.
 
+An error on a packet boundary leaves a Reader or a Writer usable. An error after one or more octets of a packet were read or written leaves the stream inside that packet: the Reader or Writer stays failed and returns ErrStreamMisaligned from every later call, and the caller closes the connection.
+
 A Reader and a Writer may be used concurrently on the same full-duplex connection. Individual Reader and Writer values are not safe for concurrent use by multiple goroutines.
 
 ## Constants
@@ -73,15 +75,17 @@ Version is the TPKT protocol version supported by this package. RFC 1006 and RFC
 
 ```go
 var (
-	// ErrNilReader indicates NewReader was called with a nil io.Reader.
+	// ErrNilReader indicates NewReader was called with a nil io.Reader, or
+	// ReadPacket was called on a zero-value or nil Reader.
 	ErrNilReader = errors.New("tpkt: nil reader")
-	// ErrNilWriter indicates NewWriter was called with a nil io.Writer.
+	// ErrNilWriter indicates NewWriter was called with a nil io.Writer, or
+	// WritePacket was called on a zero-value or nil Writer.
 	ErrNilWriter = errors.New("tpkt: nil writer")
 	// ErrTooShort indicates that a buffer is shorter than the 4-byte TPKT header.
 	ErrTooShort = errors.New("tpkt: packet too short")
 	// ErrInvalidVersion indicates a header with a version byte other than 3.
 	ErrInvalidVersion = errors.New("tpkt: invalid version")
-	// ErrInvalidPacketLength indicates that a declared or computed TPKT length
+	// ErrInvalidPacketLength indicates that the TPKT length a header declares
 	// is outside the legal range [MinPacketLength, MaxPacketLength].
 	ErrInvalidPacketLength = errors.New("tpkt: invalid packet length")
 	// ErrInvalidMaxPacketLength indicates that ReaderConfig.MaxPacketLength
@@ -99,6 +103,13 @@ var (
 	// ErrPayloadTooLarge indicates that an encode payload exceeds
 	// MaxPayloadLength (65531 octets).
 	ErrPayloadTooLarge = errors.New("tpkt: payload exceeds maximum")
+	// ErrStreamMisaligned indicates that an earlier ReadPacket or WritePacket
+	// on the same Reader or Writer failed after one or more octets of a
+	// packet had moved, so the stream is no longer aligned on a packet
+	// boundary. The error that reports it also wraps the error of that
+	// earlier call. The Reader or Writer stays in this state; the caller
+	// closes the connection.
+	ErrStreamMisaligned = errors.New("tpkt: stream no longer aligned on a packet boundary")
 )
 ```
 
@@ -114,7 +125,7 @@ func DecodePacket(packet []byte) ([]byte, error)
 
 DecodePacket validates exactly one complete TPKT and returns its payload.
 
-Trailing bytes after the declared packet length are rejected with ErrLengthMismatch. The reserved octet is ignored on input as recommended by RFC 2126 §6.10. The returned slice aliases packet; callers must copy it if they need to retain it independently.
+Trailing bytes after the declared packet length are rejected with ErrLengthMismatch. The reserved octet is ignored on input as recommended by RFC 2126 §6.10. The returned slice aliases packet; callers must copy it if they need to retain it independently. Its capacity ends at the end of the packet, so appending to it copies and never writes into the buffer behind packet.
 
 ### func EncodePacket
 
@@ -132,11 +143,19 @@ The returned slice is newly allocated and contains the 4-byte TPKT header follow
 
 ```go
 type Reader struct {
-	// contains filtered or unexported fields
+
+	// misaligned is nil until a ReadPacket fails after it consumed one or
+	// more octets of a packet. It then matches ErrStreamMisaligned, wraps
+	// the error of that call, and is what every later ReadPacket returns.
+
 }
 ```
 
 Reader reads TPKT packets from an underlying io.Reader.
+
+Construct a Reader with NewReader. The zero value has no stream and is not usable: ReadPacket on a zero-value or nil Reader returns ErrNilReader.
+
+A Reader whose ReadPacket failed after it had consumed one or more octets of a packet stays failed: the stream is no longer aligned on a packet boundary, and every later ReadPacket returns an error that matches ErrStreamMisaligned without reading from the stream.
 
 A Reader and a Writer may be used concurrently when they wrap the same full-duplex connection. An individual Reader is not safe for concurrent use by multiple goroutines without external synchronization.
 
@@ -160,7 +179,11 @@ ReadPacket reads the next TPKT from the stream and returns its payload.
 
 It returns io.EOF only when called at a packet boundary and no header byte is available. Any EOF after one or more bytes of a packet have been consumed — including immediately after a valid header — is reported as io.ErrUnexpectedEOF.
 
-After a validation or oversized-packet error, the stream is unusable; the caller must close the connection. Remaining announced bytes are not drained.
+An error before any octet of a packet was consumed leaves the Reader usable, and ReadPacket may be called again. That is io.EOF, and an error of the stream on a packet boundary (a read deadline on an idle connection, for example), which is returned wrapped.
+
+An error after one or more octets of a packet were consumed leaves the stream inside that packet. That is a validation or oversized-packet error (the announced octets are not drained), an end of the stream, and an error of the stream such as a read deadline, which is returned wrapped. The octets consumed are discarded and the stream is no longer aligned on a packet boundary, so the Reader records the error. Every later ReadPacket reads nothing and returns an error that matches ErrStreamMisaligned and wraps the recorded one, so errors.Is and errors.As still find the cause. The caller closes the connection.
+
+ReadPacket on a zero-value or nil Reader returns ErrNilReader.
 
 ### type ReaderConfig
 
@@ -178,11 +201,19 @@ MaxPacketLength is the maximum accepted total TPKT size (header included). Zero 
 
 ```go
 type Writer struct {
-	// contains filtered or unexported fields
+
+	// misaligned is nil until a WritePacket fails after it wrote one or more
+	// octets of a packet. It then matches ErrStreamMisaligned, wraps the
+	// error of that call, and is what every later WritePacket returns.
+
 }
 ```
 
 Writer writes opaque payloads as TPKT packets to an underlying io.Writer.
+
+Construct a Writer with NewWriter. The zero value has no stream and is not usable: WritePacket on a zero-value or nil Writer returns ErrNilWriter.
+
+A Writer whose WritePacket failed after it had written one or more octets of a packet stays failed: the stream is no longer aligned on a packet boundary, and every later WritePacket returns an error that matches ErrStreamMisaligned without writing to the stream.
 
 A Reader and a Writer may be used concurrently when they wrap the same full-duplex connection. An individual Writer is not safe for concurrent use by multiple goroutines without external synchronization.
 
@@ -203,3 +234,11 @@ func (w *Writer) WritePacket(payload []byte) error
 WritePacket encodes payload as a TPKT and writes it in full.
 
 The reserved octet is always written as zero. Short writes from the underlying writer are retried until the complete packet is sent or an error occurs. A zero-byte write with a nil error yields io.ErrShortWrite.
+
+A payload outside \[MinPayloadLength, MaxPayloadLength] is refused with ErrPayloadTooShort or ErrPayloadTooLarge before the Writer looks at its stream: nothing is written, and the error is the same in every state of the Writer.
+
+An error of the underlying writer, or io.ErrShortWrite, before any octet of the packet was written leaves the Writer usable, and WritePacket may be called again.
+
+The same error after one or more octets of the packet were written leaves an incomplete packet on the stream. The call returns the error, wrapped. The stream is no longer aligned on a packet boundary (the peer would read the start of the next packet as the rest of this one), so the Writer records the error. Every later WritePacket writes nothing and returns an error that matches ErrStreamMisaligned and wraps the recorded one, so errors.Is and errors.As still find the cause. The caller closes the connection.
+
+WritePacket on a zero-value or nil Writer returns ErrNilWriter.

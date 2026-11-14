@@ -158,14 +158,19 @@ func TestPipeAdversarialBadVersion(t *testing.T) {
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 	defer func() { _ = c2.Close() }()
+	// The deadline is a safeguard against a stalled test. The test does not
+	// wait for it: closing the reading end below releases the writer.
 	deadline := time.Now().Add(5 * time.Second)
 	_ = c1.SetDeadline(deadline)
 	_ = c2.SetDeadline(deadline)
 
-	var wg sync.WaitGroup
+	var (
+		wg       sync.WaitGroup
+		written  int
+		writeErr error
+	)
 	wg.Go(func() {
-		_, _ = c1.Write([]byte{0x02, 0x00, 0x00, 0x07, 0x01, 0x02, 0x03})
-		_ = c1.Close()
+		written, writeErr = c1.Write([]byte{0x02, 0x00, 0x00, 0x07, 0x01, 0x02, 0x03})
 	})
 
 	r, err := NewReader(c2, ReaderConfig{})
@@ -175,7 +180,20 @@ func TestPipeAdversarialBadVersion(t *testing.T) {
 	if _, err := r.ReadPacket(); !errors.Is(err, ErrInvalidVersion) {
 		t.Fatalf("got %v, want ErrInvalidVersion", err)
 	}
+
+	// ReadPacket stops behind the header and does not drain the rest of the
+	// refused packet, so the peer's write of the last three octets is still
+	// pending. The caller closes the connection, which ends that write.
+	if err := c2.Close(); err != nil {
+		t.Fatalf("close the reading end: %v", err)
+	}
 	wg.Wait()
+	if !errors.Is(writeErr, io.ErrClosedPipe) {
+		t.Fatalf("peer write: got %v, want io.ErrClosedPipe", writeErr)
+	}
+	if written != HeaderLength {
+		t.Fatalf("peer wrote %d octets, want the %d of the header only", written, HeaderLength)
+	}
 }
 
 func TestPipeNonZeroReservedAccepted(t *testing.T) {
