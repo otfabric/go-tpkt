@@ -187,3 +187,36 @@ func TestDecodeHeaderTooShort(t *testing.T) {
 		t.Fatalf("got %v, want ErrTooShort", err)
 	}
 }
+
+// TestDecodePacketResultEndsAtPacket: the payload DecodePacket returns
+// aliases the packet and nothing behind it. Its capacity ends where the
+// packet ends, so an append onto it copies and leaves the rest of the
+// caller's buffer (here a second packet) unchanged.
+func TestDecodePacketResultEndsAtPacket(t *testing.T) {
+	first, err := EncodePacket([]byte{0x01, 0x02, 0x03})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := EncodePacket([]byte{0x04, 0x05, 0x06})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 0, len(first)+len(second))
+	buf = append(append(buf, first...), second...)
+	want := bytes.Clone(buf)
+
+	payload, err := DecodePacket(buf[:len(first)])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cap(payload) != len(payload) {
+		t.Fatalf("payload has len %d and cap %d, want the capacity to end at the packet", len(payload), cap(payload))
+	}
+	grown := append(payload, 0xEE)
+	if !bytes.Equal(buf, want) {
+		t.Fatalf("append onto the payload changed the buffer behind the packet: got %x want %x", buf, want)
+	}
+	if !bytes.Equal(grown, []byte{0x01, 0x02, 0x03, 0xEE}) {
+		t.Fatalf("grown payload = %x", grown)
+	}
+}

@@ -62,7 +62,7 @@ go-tpkt/
 │   ├── errors.go      Exported sentinels
 │   ├── doc.go         Package overview
 │   └── *_test.go      Unit, fuzz, bench, and example tests
-├── spec/              RFC 1006 / RFC 2126 reference texts
+├── spec/              RFC 1006 / RFC 2126 reference texts, with their provenance
 ├── API.md             Public API reference (wire format, ownership, EOF)
 ├── ARCHITECTURE.md    Layers, goroutine and ownership model
 ├── TESTING.md         Test tiers, coverage policy, fuzz regressions
@@ -79,7 +79,7 @@ documented in [API.md](API.md#ownership).
 ### Install
 
 ```bash
-go get github.com/otfabric/go-tpkt@v1.0.1
+go get github.com/otfabric/go-tpkt
 ```
 
 Requires Go 1.26 or newer.

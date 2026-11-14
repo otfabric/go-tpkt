@@ -35,6 +35,12 @@
 // ReadPacket returns io.EOF only at a clean packet boundary; EOF after any
 // byte of a packet has been consumed is reported as io.ErrUnexpectedEOF.
 //
+// An error on a packet boundary leaves a Reader or a Writer usable. An error
+// after one or more octets of a packet were read or written leaves the
+// stream inside that packet: the Reader or Writer stays failed and returns
+// ErrStreamMisaligned from every later call, and the caller closes the
+// connection.
+//
 // A Reader and a Writer may be used concurrently on the same full-duplex
 // connection. Individual Reader and Writer values are not safe for concurrent
 // use by multiple goroutines.

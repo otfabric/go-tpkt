@@ -25,4 +25,6 @@ jobs:
       bump: ${{ inputs.bump }}
       release-name-prefix: go-tpkt
       update-major-tag: false
+      # Built, vetted and tested against the release commit before the tag.
+      consumers: otfabric/go-cotp
     secrets: inherit
