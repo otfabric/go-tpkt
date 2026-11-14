@@ -1,5 +1,16 @@
 # go-tpkt Releases
 
+## v1.2.1
+
+**Date:** 2026-11-14
+**Previous release:** v1.2.0
+
+### Fixed
+
+- `WritePacket` returns an error when the underlying writer reports a count below zero or above the length it was given, which the `io.Writer` contract rules out. It used to loop on a negative count without an error. How much of the packet reached the stream is then unknown, so the `Writer` stays failed as after a partial write, and later calls return an error that matches `ErrStreamMisaligned`.
+
+---
+
 ## v1.2.0
 
 **Date:** 2026-11-14

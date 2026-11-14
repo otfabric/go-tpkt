@@ -233,7 +233,7 @@ func (w *Writer) WritePacket(payload []byte) error
 
 WritePacket encodes payload as a TPKT and writes it in full.
 
-The reserved octet is always written as zero. Short writes from the underlying writer are retried until the complete packet is sent or an error occurs. A zero-byte write with a nil error yields io.ErrShortWrite.
+The reserved octet is always written as zero. Short writes from the underlying writer are retried until the complete packet is sent or an error occurs. A zero-byte write with a nil error yields io.ErrShortWrite. A write that reports a negative count or more octets than it was given breaks the io.Writer contract; WritePacket then returns an error and the Writer stays failed as after a partial write.
 
 A payload outside \[MinPayloadLength, MaxPayloadLength] is refused with ErrPayloadTooShort or ErrPayloadTooLarge before the Writer looks at its stream: nothing is written, and the error is the same in every state of the Writer.
 
