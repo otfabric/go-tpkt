@@ -32,8 +32,8 @@ type Writer struct {
 	// writerKeepLength octets is encoded into it, so a Writer that sends
 	// such packets allocates once; a larger packet is encoded into a new
 	// buffer that is dropped after the write, so a Writer never keeps more
-	// than writerKeepLength octets.
-	buf []byte
+	// than writerKeepLength octets. A pointer, so Writer stays comparable.
+	buf *[]byte
 }
 
 // writerKeepLength is the largest packet, in octets, whose buffer a Writer
@@ -97,12 +97,13 @@ func (w *Writer) WritePacket(payload []byte) error {
 	}
 
 	var pkt []byte
-	if total <= cap(w.buf) {
-		pkt = w.buf[:total]
+	if w.buf != nil && total <= cap(*w.buf) {
+		pkt = (*w.buf)[:total]
 	} else {
 		pkt = make([]byte, total)
 		if total <= writerKeepLength {
-			w.buf = pkt
+			kept := pkt
+			w.buf = &kept
 		}
 	}
 	encodeInto(pkt, payload)

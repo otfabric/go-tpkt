@@ -86,8 +86,12 @@ func TestWriterKeepsBoundedBuffer(t *testing.T) {
 		if err := w.WritePacket(make([]byte, s.payload)); err != nil {
 			t.Fatal(err)
 		}
-		if cap(w.buf) != s.wantCap {
-			t.Fatalf("step %d (payload %d): kept %d octets, want %d", i, s.payload, cap(w.buf), s.wantCap)
+		kept := 0
+		if w.buf != nil {
+			kept = cap(*w.buf)
+		}
+		if kept != s.wantCap {
+			t.Fatalf("step %d (payload %d): kept %d octets, want %d", i, s.payload, kept, s.wantCap)
 		}
 	}
 }
@@ -125,6 +129,20 @@ func TestWriterReusesBuffer(t *testing.T) {
 	}
 	if !bytes.Equal(rw.kept[0], b) {
 		t.Fatalf("kept first slice % x, want it overwritten by the second packet % x", rw.kept[0], b)
+	}
+}
+
+// TestWriterComparable: Writer and Reader stay comparable, as in v1.2.1
+// (gorelease treats losing that as an incompatible change).
+func TestWriterComparable(t *testing.T) {
+	w1, _ := NewWriter(io.Discard)
+	w2, _ := NewWriter(io.Discard)
+	if *w1 != *w2 {
+		t.Fatal("fresh Writers over the same stream differ")
+	}
+	r1, _ := NewReader(bytes.NewReader(nil), ReaderConfig{})
+	if *r1 != *r1 {
+		t.Fatal("Reader not equal to itself")
 	}
 }
 
