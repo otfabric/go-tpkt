@@ -19,7 +19,7 @@ Nothing is certified. go-tpkt has no independent-implementation interoperability
 - **Write errors:** when the underlying writer fails part way, `WritePacket` returns the error without reporting how many octets were sent. An incomplete packet is then on the wire and `WritePacket` cannot complete it. The `Writer` stays failed, every later `WritePacket` returns `ErrStreamMisaligned`, and the caller must close the connection. A failure before any octet of the packet was written leaves the `Writer` usable.
 - **The failed state is per value:** a `Reader` and a `Writer` each record their own failure ([API.md](API.md#state-of-the-stream-after-an-error)). A `Reader` that failed does not stop the `Writer` on the same connection, and a second `Reader` or `Writer` built on the same stream does not know of the failure.
 - **Receive allocation:** `ReadPacket` allocates the payload from the declared length before the payload arrives, up to `ReaderConfig.MaxPacketLength` minus the header (65531 octets by default). Lower the limit for connections that do not need full-size packets.
-- **Allocation per packet:** each `ReadPacket` and `WritePacket` allocates one packet-sized buffer; there is no buffer reuse.
+- **Allocation per packet:** each `ReadPacket` allocates the payload it returns. `WritePacket` reuses one buffer for packets of at most 8196 octets and allocates a new buffer for each larger packet; a `Writer` keeps at most 8196 octets between calls.
 - **Reserved octet:** it is ignored on input, so a non-zero value from a peer is accepted and is not reported.
 - **Minimum payload:** payloads below 3 octets are rejected on encode and on decode, following the RFC 1006 minimum packet length.
 

@@ -1,5 +1,23 @@
 # go-tpkt Releases
 
+## v1.2.2
+
+**Date:** 2026-11-15
+**Previous release:** v1.2.1
+
+No exported identifier is added, removed or changed. What goes on the wire is unchanged.
+
+### Changed
+
+- **`WritePacket` reuses its packet buffer.** A `Writer` encodes a packet of at most 8196 octets (a payload of 8192) into a buffer it keeps for the next call, so `WritePacket` no longer allocates for such packets after the first one. A larger packet is encoded into a new buffer that is dropped after the call, so a `Writer` keeps at most 8196 octets between calls. The underlying writer now receives the same buffer on every call. A writer that keeps the slice after `Write` returns, which the `io.Writer` contract forbids, would see it overwritten by the next packet. Writers that copy, such as `net.Conn`, `*tls.Conn`, `bytes.Buffer` and `bufio.Writer`, are not affected.
+- **`ReadPacket` allocates once per packet instead of twice.** The 4-octet header is read into an array of the `Reader` instead of one that escaped to the heap on every call. The payload `ReadPacket` returns is still newly allocated and owned by the caller.
+
+### Documentation
+
+- The doc comment of `WritePacket`, API.md (ownership), ARCHITECTURE.md and LIMITATIONS.md describe the kept buffer and the requirement on the underlying writer.
+
+---
+
 ## v1.2.1
 
 **Date:** 2026-11-14

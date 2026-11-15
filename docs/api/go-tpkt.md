@@ -148,6 +148,10 @@ type Reader struct {
 	// more octets of a packet. It then matches ErrStreamMisaligned, wraps
 	// the error of that call, and is what every later ReadPacket returns.
 
+	// header receives the TPKT header of each packet. As a field it does
+	// not escape to the heap on every call, as a local array passed to the
+	// io.Reader would.
+
 }
 ```
 
@@ -206,6 +210,12 @@ type Writer struct {
 	// octets of a packet. It then matches ErrStreamMisaligned, wraps the
 	// error of that call, and is what every later WritePacket returns.
 
+	// buf holds the packet being written. A packet of at most
+	// writerKeepLength octets is encoded into it, so a Writer that sends
+	// such packets allocates once; a larger packet is encoded into a new
+	// buffer that is dropped after the write, so a Writer never keeps more
+	// than writerKeepLength octets.
+
 }
 ```
 
@@ -240,5 +250,7 @@ A payload outside \[MinPayloadLength, MaxPayloadLength] is refused with ErrPaylo
 An error of the underlying writer, or io.ErrShortWrite, before any octet of the packet was written leaves the Writer usable, and WritePacket may be called again.
 
 The same error after one or more octets of the packet were written leaves an incomplete packet on the stream. The call returns the error, wrapped. The stream is no longer aligned on a packet boundary (the peer would read the start of the next packet as the rest of this one), so the Writer records the error. Every later WritePacket writes nothing and returns an error that matches ErrStreamMisaligned and wraps the recorded one, so errors.Is and errors.As still find the cause. The caller closes the connection.
+
+The packet is encoded into a buffer that the Writer keeps for the next call when the packet is at most 8196 octets (a payload of 8192), so WritePacket then does not allocate. A larger packet is encoded into a new buffer that is dropped after the call. The underlying writer receives the same buffer on every call and must not keep it after Write returns, which the io.Writer contract already requires.
 
 WritePacket on a zero-value or nil Writer returns ErrNilWriter.

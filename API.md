@@ -119,7 +119,7 @@ Validates exactly one complete TPKT and returns the payload (aliases `packet`; i
 | `EncodePacket` | Returns a **new** packet buffer. The input `payload` is copied; the caller retains ownership of `payload`. |
 | `DecodePacket` | Returned payload **aliases** `packet` (a subslice). Mutating or reusing `packet` after decode affects the result; copy the payload if it must outlive the input buffer. The capacity of the payload ends at the end of the packet, so `append` onto it copies and does not write into the buffer behind `packet`. |
 | `ReadPacket` | Returns a **newly allocated** payload. It does not alias an internal stream buffer. |
-| `WritePacket` | Copies `payload` into the encoded TPKT written to the underlying `io.Writer`. The caller retains ownership of `payload`. |
+| `WritePacket` | Copies `payload` into the encoded TPKT written to the underlying `io.Writer`. The caller retains ownership of `payload`. A packet of at most 8196 octets is encoded into a buffer the `Writer` reuses, so the underlying writer must not keep the slice it is given after `Write` returns (the `io.Writer` contract). |
 
 ---
 
