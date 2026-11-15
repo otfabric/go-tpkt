@@ -214,7 +214,7 @@ type Writer struct {
 	// writerKeepLength octets is encoded into it, so a Writer that sends
 	// such packets allocates once; a larger packet is encoded into a new
 	// buffer that is dropped after the write, so a Writer never keeps more
-	// than writerKeepLength octets.
+	// than writerKeepLength octets. A pointer, so Writer stays comparable.
 
 }
 ```
