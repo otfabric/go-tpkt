@@ -27,7 +27,18 @@ type Writer struct {
 	// octets of a packet. It then matches ErrStreamMisaligned, wraps the
 	// error of that call, and is what every later WritePacket returns.
 	misaligned error
+
+	// buf holds the packet being written. A packet of at most
+	// writerKeepLength octets is encoded into it, so a Writer that sends
+	// such packets allocates once; a larger packet is encoded into a new
+	// buffer that is dropped after the write, so a Writer never keeps more
+	// than writerKeepLength octets.
+	buf []byte
 }
+
+// writerKeepLength is the largest packet, in octets, whose buffer a Writer
+// keeps for the next WritePacket.
+const writerKeepLength = 8192 + HeaderLength
 
 // NewWriter constructs a Writer over w. w must be non-nil.
 func NewWriter(w io.Writer) (*Writer, error) {
@@ -64,10 +75,17 @@ func NewWriter(w io.Writer) (*Writer, error) {
 // errors.Is and errors.As still find the cause. The caller closes the
 // connection.
 //
+// The packet is encoded into a buffer that the Writer keeps for the next
+// call when the packet is at most 8196 octets (a payload of 8192), so
+// WritePacket then does not allocate. A larger packet is encoded into a new
+// buffer that is dropped after the call. The underlying writer receives the
+// same buffer on every call and must not keep it after Write returns, which
+// the io.Writer contract already requires.
+//
 // WritePacket on a zero-value or nil Writer returns ErrNilWriter.
 func (w *Writer) WritePacket(payload []byte) error {
-	pkt, err := EncodePacket(payload)
-	if err != nil {
+	total := HeaderLength + len(payload)
+	if err := checkPayloadLength(len(payload)); err != nil {
 		return err
 	}
 	// Checked after the payload, so a payload error is reported as before.
@@ -77,7 +95,17 @@ func (w *Writer) WritePacket(payload []byte) error {
 	if w.misaligned != nil {
 		return w.misaligned
 	}
-	total := len(pkt)
+
+	var pkt []byte
+	if total <= cap(w.buf) {
+		pkt = w.buf[:total]
+	} else {
+		pkt = make([]byte, total)
+		if total <= writerKeepLength {
+			w.buf = pkt
+		}
+	}
+	encodeInto(pkt, payload)
 
 	written := 0
 	for written < total {

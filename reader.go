@@ -29,6 +29,11 @@ type Reader struct {
 	// more octets of a packet. It then matches ErrStreamMisaligned, wraps
 	// the error of that call, and is what every later ReadPacket returns.
 	misaligned error
+
+	// header receives the TPKT header of each packet. As a field it does
+	// not escape to the heap on every call, as a local array passed to the
+	// io.Reader would.
+	header [HeaderLength]byte
 }
 
 // ReaderConfig configures a Reader.
@@ -94,8 +99,7 @@ func (r *Reader) ReadPacket() ([]byte, error) {
 		return nil, r.misaligned
 	}
 
-	var header [HeaderLength]byte
-	n, err := readFullHeader(r.r, header[:])
+	n, err := readFullHeader(r.r, r.header[:])
 	if err != nil {
 		if n > 0 {
 			return nil, r.fail(err)
@@ -105,7 +109,7 @@ func (r *Reader) ReadPacket() ([]byte, error) {
 		return nil, err
 	}
 
-	totalLen, err := decodeHeader(header[:])
+	totalLen, err := decodeHeader(r.header[:])
 	if err != nil {
 		return nil, r.fail(fmt.Errorf("read tpkt header: %w", err))
 	}

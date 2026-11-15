@@ -13,24 +13,40 @@ import (
 // followed by the payload. The reserved octet is always written as zero
 // (RFC 2126 §4.3). Payload length must be in [MinPayloadLength, MaxPayloadLength].
 func EncodePacket(payload []byte) ([]byte, error) {
-	totalLen := HeaderLength + len(payload)
-
-	// Bound totalLen itself (not only len(payload)) so the uint16 conversion
-	// below is visibly in range.
-	if totalLen < MinPacketLength {
-		return nil, fmt.Errorf("encode tpkt: payload length %d < minimum %d: %w", len(payload), MinPayloadLength, ErrPayloadTooShort)
+	if err := checkPayloadLength(len(payload)); err != nil {
+		return nil, err
 	}
-	if totalLen > MaxPacketLength {
-		return nil, fmt.Errorf("encode tpkt: payload length %d > maximum %d: %w", len(payload), MaxPayloadLength, ErrPayloadTooLarge)
-	}
-
-	buf := make([]byte, totalLen)
-	buf[0] = Version
-	buf[1] = 0 // reserved
-	binary.BigEndian.PutUint16(buf[2:4], uint16(totalLen))
-	copy(buf[HeaderLength:], payload)
-
+	buf := make([]byte, HeaderLength+len(payload))
+	encodeInto(buf, payload)
 	return buf, nil
+}
+
+// checkPayloadLength refuses a payload length outside
+// [MinPayloadLength, MaxPayloadLength].
+func checkPayloadLength(n int) error {
+	if n < MinPayloadLength {
+		return fmt.Errorf("encode tpkt: payload length %d < minimum %d: %w", n, MinPayloadLength, ErrPayloadTooShort)
+	}
+	if n > MaxPayloadLength {
+		return fmt.Errorf("encode tpkt: payload length %d > maximum %d: %w", n, MaxPayloadLength, ErrPayloadTooLarge)
+	}
+	return nil
+}
+
+// encodeInto writes the header and payload into pkt, which is exactly
+// HeaderLength+len(payload) octets long. The caller has checked the payload
+// length with checkPayloadLength.
+func encodeInto(pkt, payload []byte) {
+	totalLen := len(pkt)
+	// Bound totalLen itself so the uint16 conversion below is visibly in
+	// range.
+	if totalLen < MinPacketLength || totalLen > MaxPacketLength {
+		panic("tpkt: encodeInto: packet length out of range")
+	}
+	pkt[0] = Version
+	pkt[1] = 0 // reserved
+	binary.BigEndian.PutUint16(pkt[2:4], uint16(totalLen))
+	copy(pkt[HeaderLength:], payload)
 }
 
 // DecodePacket validates exactly one complete TPKT and returns its payload.
